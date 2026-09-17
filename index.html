@@ -69,6 +69,7 @@
         <span>ค้นหาภาพของฉัน</span>
       </button>
 
+      <!-- ข้อความแจ้งเตือนสถานะ จัดกึ่งกลางตลอดเวลา -->
       <div id="statusNotice" class="text-xs text-center min-h-[18px] text-zinc-500 font-medium"></div>
     </div>
 
@@ -80,7 +81,6 @@
           <span class="text-[11px] text-zinc-400 font-mono">Face Landmark AI (Strict Mode)</span>
         </div>
         
-        <!-- ปุ่มดาวน์โหลดทั้งหมด (ซ่อนไว้ก่อน จะแสดงเมื่อเจอภาพ) -->
         <button id="downloadAllBtn" class="hidden items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition shadow-sm active:scale-95">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           <span>ดาวน์โหลดภาพทั้งหมด (<span id="allCountNum">0</span>)</span>
@@ -108,14 +108,12 @@
       <!-- พื้นที่รูปภาพ + ปุ่มเลื่อนซ้าย/ขวา -->
       <div id="modalSwipeArea" class="relative p-2 bg-black flex items-center justify-center min-h-[350px] max-h-[70vh] overflow-hidden">
         
-        <!-- ปุ่มเลื่อนซ้าย -->
         <button id="prevBtn" class="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-zinc-900/80 hover:bg-red-600 text-white flex items-center justify-center border border-zinc-700/80 shadow-lg transition z-20 disabled:opacity-20 disabled:hover:bg-zinc-900/80 disabled:cursor-not-allowed">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
         </button>
 
         <img id="modalImg" src="" class="max-h-[65vh] max-w-full object-contain rounded-lg transition-opacity duration-200" alt="Full Preview">
 
-        <!-- ปุ่มเลื่อนขวา -->
         <button id="nextBtn" class="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-zinc-900/80 hover:bg-red-600 text-white flex items-center justify-center border border-zinc-700/80 shadow-lg transition z-20 disabled:opacity-20 disabled:hover:bg-zinc-900/80 disabled:cursor-not-allowed">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
         </button>
@@ -222,8 +220,10 @@
       extractedDescriptor = null;
       gallery.innerHTML = '';
       currentResults = [];
+      
+      // ข้อความจัดกึ่งกลางเสมอ
       statusNotice.innerText = "⏳ กำลังสแกนใบหน้า...";
-      statusNotice.className = "text-xs text-amber-600 animate-pulse";
+      statusNotice.className = "text-xs text-center min-h-[18px] text-amber-600 animate-pulse font-medium";
 
       try {
         const canvas = await prepareCanvas(file, 500);
@@ -243,15 +243,15 @@
 
         if (detection && detection.descriptor) {
           extractedDescriptor = Array.from(detection.descriptor);
-          statusNotice.className = "text-xs text-emerald-600 font-semibold";
+          statusNotice.className = "text-xs text-center min-h-[18px] text-emerald-600 font-semibold";
           statusNotice.innerText = "✅ สแกนใบหน้าเรียบร้อย กดค้นหาได้เลย";
           searchBtn.disabled = false;
         } else {
-          statusNotice.className = "text-xs text-rose-600 font-semibold";
+          statusNotice.className = "text-xs text-center min-h-[18px] text-rose-600 font-semibold";
           statusNotice.innerText = "⚠️ ไม่พบใบหน้า กรุณาเลือกภาพหน้าตรงที่ชัดเจน";
         }
       } catch (err) {
-        statusNotice.className = "text-xs text-rose-600";
+        statusNotice.className = "text-xs text-center min-h-[18px] text-rose-600 font-medium";
         statusNotice.innerText = "เกิดข้อผิดพลาดในการอ่านไฟล์";
       }
     });
@@ -260,7 +260,7 @@
       if (!extractedDescriptor) return;
 
       statusNotice.innerText = "🚀 กำลังค้นหาภาพเฉพาะของคุณจากระบบ...";
-      statusNotice.className = "text-xs text-zinc-600 animate-pulse";
+      statusNotice.className = "text-xs text-center min-h-[18px] text-zinc-600 animate-pulse font-medium";
       searchBtn.disabled = true;
       downloadAllBtn.classList.add('hidden');
       downloadAllBtn.classList.remove('inline-flex');
@@ -268,7 +268,6 @@
       currentResults = [];
 
       try {
-        // กำหนด match_threshold: 0.36 สำหรับการค้นหาแบบเข้มงวด
         let rpcName = targetEvent ? 'match_face' : 'match_face_global';
         let rpcParams = targetEvent 
           ? { query_embedding: extractedDescriptor, target_event: targetEvent, match_threshold: 0.36, match_count: 200 }
@@ -280,14 +279,13 @@
         searchBtn.disabled = false;
         statusNotice.innerText = "";
 
-        // กรองซ้ำรอบสอง (Client-side): ตัดภาพที่ similarity ต่ำกว่า 62% ทิ้งทั้งหมด
+        // กรองซ้ำระดับ Client-side (ความเหมือน >= 62% เท่านั้น)
         const verifiedData = (data || []).filter(item => (item.similarity && item.similarity >= 62));
 
         if (verifiedData.length > 0) {
           currentResults = verifiedData;
           resultCount.innerText = `พบภาพถ่ายของคุณทั้งหมด ${verifiedData.length} ภาพ`;
 
-          // แสดงปุ่มดาวน์โหลดทั้งหมด
           allCountNum.innerText = verifiedData.length;
           downloadAllBtn.classList.remove('hidden');
           downloadAllBtn.classList.add('inline-flex');
@@ -300,7 +298,6 @@
               ? `<span class="bg-zinc-900 text-white text-[10px] px-1.5 py-0.5 rounded font-mono border border-zinc-700">ตรงกัน ${item.similarity}%</span>` 
               : '';
 
-            const highResPreviewUrl = `https://lh3.googleusercontent.com/d/${item.drive_file_id}=s1600`;
             const directDownloadUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
 
             card.innerHTML = `
@@ -326,13 +323,13 @@
           resultCount.innerText = "ไม่พบภาพถ่ายที่ตรงกับใบหน้าของคุณ (แบบแม่นยำสูง)";
         }
       } catch (err) {
-        statusNotice.className = "text-xs text-rose-600";
+        statusNotice.className = "text-xs text-center min-h-[18px] text-rose-600 font-medium";
         statusNotice.innerText = `ข้อผิดพลาด: ${err.message}`;
         searchBtn.disabled = false;
       }
     });
 
-    // ฟังก์ชันดาวน์โหลดภาพทั้งหมดในคลิกเดียว (Batch Download)
+    // ระบบดาวน์โหลดภาพทั้งหมดในคลิกเดียว
     downloadAllBtn.addEventListener('click', async () => {
       if (!currentResults || currentResults.length === 0) return;
 
@@ -355,7 +352,6 @@
         link.click();
         document.body.removeChild(link);
 
-        // หน่วงเวลา 400ms ต่อภาพ เพื่อป้องกันไม่ให้เบราว์เซอร์บล็อกการดาวน์โหลดต่อเนื่อง
         await new Promise(resolve => setTimeout(resolve, 400));
       }
 
@@ -363,7 +359,7 @@
       downloadAllBtn.innerHTML = originalText;
     });
 
-    // ฟังก์ชัน Modal Slider
+    // ฟังก์ชันเปิดและเลื่อนดูภาพใน Modal
     function openModalAt(index) {
       if (!currentResults || currentResults.length === 0) return;
       currentIndex = index;
@@ -411,6 +407,7 @@
       if (e.key === 'Escape') closeModalAction();
     });
 
+    // รองรับการปัดจอ Swipe ซ้าย-ขวา บนมือถือ
     let touchStartX = 0;
     let touchEndX = 0;
 
