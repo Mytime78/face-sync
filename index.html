@@ -256,8 +256,8 @@
       try {
         let rpcName = targetEvent ? 'match_face' : 'match_face_global';
         let rpcParams = targetEvent 
-          ? { query_embedding: extractedDescriptor, target_event: targetEvent, match_threshold: 0.46, match_count: 200 }
-          : { query_embedding: extractedDescriptor, match_threshold: 0.38, match_count: 200 };
+          ? { query_embedding: extractedDescriptor, target_event: targetEvent, match_threshold: 0.36, match_count: 200 }
+          : { query_embedding: extractedDescriptor, match_threshold: 0.36, match_count: 200 };
 
         const { data, error } = await supabaseClient.rpc(rpcName, rpcParams);
 
