@@ -44,7 +44,7 @@
     <div class="bg-white border border-zinc-200 border-t-4 border-t-red-600 rounded-2xl p-6 shadow-sm space-y-4">
       <div class="text-center space-y-1">
         <h1 class="text-2xl font-bold text-zinc-900">ค้นหาภาพถ่ายของคุณ</h1>
-        <p class="text-xs text-zinc-500">ถ่ายเซลฟี่หรือเลือกภาพหน้าตรง ระบบ AI จะค้นหาภาพของคุณจากงานทั้งหมดทันที</p>
+        <p class="text-xs text-zinc-500">ถ่ายเซลฟี่หรือเลือกภาพหน้าตรง (ครึ่งตัวบน) เพื่อผลลัพธ์ที่แม่นยำที่สุด</p>
       </div>
 
       <div onclick="document.getElementById('selfieInput').click()" 
@@ -72,11 +72,19 @@
       <div id="statusNotice" class="text-xs text-center min-h-[18px] text-zinc-500 font-medium"></div>
     </div>
 
-    <!-- Gallery แสดงรูป -->
+    <!-- Gallery แสดงรูป + ปุ่มดาวน์โหลดภาพทั้งหมด -->
     <div class="space-y-3 pt-2">
-      <div class="flex items-center justify-between px-1">
-        <h2 id="resultCount" class="text-sm font-bold text-zinc-800">ผลการค้นหา</h2>
-        <span class="text-[11px] text-zinc-400 font-mono">Face Landmark AI</span>
+      <div class="flex items-center justify-between px-1 gap-2 flex-wrap">
+        <div>
+          <h2 id="resultCount" class="text-sm font-bold text-zinc-800">ผลการค้นหา</h2>
+          <span class="text-[11px] text-zinc-400 font-mono">Face Landmark AI (Strict Mode)</span>
+        </div>
+        
+        <!-- ปุ่มดาวน์โหลดทั้งหมด (ซ่อนไว้ก่อน จะแสดงเมื่อเจอภาพ) -->
+        <button id="downloadAllBtn" class="hidden items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition shadow-sm active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          <span>ดาวน์โหลดภาพทั้งหมด (<span id="allCountNum">0</span>)</span>
+        </button>
       </div>
 
       <div id="gallery" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
@@ -140,6 +148,8 @@
     const gallery = document.getElementById('gallery');
     const resultCount = document.getElementById('resultCount');
     const aiBadge = document.getElementById('aiBadge');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const allCountNum = document.getElementById('allCountNum');
 
     // ตัวแปรสำหรับ Modal Slider
     const imageModal = document.getElementById('imageModal');
@@ -207,6 +217,8 @@
       const file = e.target.files[0];
 
       searchBtn.disabled = true;
+      downloadAllBtn.classList.add('hidden');
+      downloadAllBtn.classList.remove('inline-flex');
       extractedDescriptor = null;
       gallery.innerHTML = '';
       currentResults = [];
@@ -236,7 +248,7 @@
           searchBtn.disabled = false;
         } else {
           statusNotice.className = "text-xs text-rose-600 font-semibold";
-          statusNotice.innerText = "⚠️ ไม่พบใบหน้า กรุณาถ่ายหน้าตรงให้เห็นชัดเจน";
+          statusNotice.innerText = "⚠️ ไม่พบใบหน้า กรุณาเลือกภาพหน้าตรงที่ชัดเจน";
         }
       } catch (err) {
         statusNotice.className = "text-xs text-rose-600";
@@ -247,13 +259,16 @@
     searchBtn.addEventListener('click', async () => {
       if (!extractedDescriptor) return;
 
-      statusNotice.innerText = "🚀 กำลังค้นหาภาพของคุณจากระบบ...";
+      statusNotice.innerText = "🚀 กำลังค้นหาภาพเฉพาะของคุณจากระบบ...";
       statusNotice.className = "text-xs text-zinc-600 animate-pulse";
       searchBtn.disabled = true;
+      downloadAllBtn.classList.add('hidden');
+      downloadAllBtn.classList.remove('inline-flex');
       gallery.innerHTML = '';
       currentResults = [];
 
       try {
+        // กำหนด match_threshold: 0.36 สำหรับการค้นหาแบบเข้มงวด
         let rpcName = targetEvent ? 'match_face' : 'match_face_global';
         let rpcParams = targetEvent 
           ? { query_embedding: extractedDescriptor, target_event: targetEvent, match_threshold: 0.36, match_count: 200 }
@@ -265,11 +280,19 @@
         searchBtn.disabled = false;
         statusNotice.innerText = "";
 
-        if (data && data.length > 0) {
-          currentResults = data;
-          resultCount.innerText = `พบภาพถ่ายของคุณทั้งหมด ${data.length} ภาพ`;
+        // กรองซ้ำรอบสอง (Client-side): ตัดภาพที่ similarity ต่ำกว่า 62% ทิ้งทั้งหมด
+        const verifiedData = (data || []).filter(item => (item.similarity && item.similarity >= 62));
 
-          data.forEach((item, index) => {
+        if (verifiedData.length > 0) {
+          currentResults = verifiedData;
+          resultCount.innerText = `พบภาพถ่ายของคุณทั้งหมด ${verifiedData.length} ภาพ`;
+
+          // แสดงปุ่มดาวน์โหลดทั้งหมด
+          allCountNum.innerText = verifiedData.length;
+          downloadAllBtn.classList.remove('hidden');
+          downloadAllBtn.classList.add('inline-flex');
+
+          verifiedData.forEach((item, index) => {
             const card = document.createElement('div');
             card.className = "group border border-zinc-200 hover:border-red-500/50 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition flex flex-col";
             
@@ -277,6 +300,7 @@
               ? `<span class="bg-zinc-900 text-white text-[10px] px-1.5 py-0.5 rounded font-mono border border-zinc-700">ตรงกัน ${item.similarity}%</span>` 
               : '';
 
+            const highResPreviewUrl = `https://lh3.googleusercontent.com/d/${item.drive_file_id}=s1600`;
             const directDownloadUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
 
             card.innerHTML = `
@@ -299,7 +323,7 @@
             gallery.appendChild(card);
           });
         } else {
-          resultCount.innerText = "ไม่พบภาพถ่ายที่ตรงกับใบหน้าของคุณ";
+          resultCount.innerText = "ไม่พบภาพถ่ายที่ตรงกับใบหน้าของคุณ (แบบแม่นยำสูง)";
         }
       } catch (err) {
         statusNotice.className = "text-xs text-rose-600";
@@ -308,7 +332,38 @@
       }
     });
 
-    // ฟังก์ชันเปิดและอัปเดตสถานะใน Modal
+    // ฟังก์ชันดาวน์โหลดภาพทั้งหมดในคลิกเดียว (Batch Download)
+    downloadAllBtn.addEventListener('click', async () => {
+      if (!currentResults || currentResults.length === 0) return;
+
+      const confirmed = confirm(`ต้องการดาวน์โหลดภาพทั้งหมดจำนวน ${currentResults.length} ภาพ หรือไม่?`);
+      if (!confirmed) return;
+
+      downloadAllBtn.disabled = true;
+      const originalText = downloadAllBtn.innerHTML;
+      downloadAllBtn.innerHTML = `<span>กำลังเริ่มดาวน์โหลด...</span>`;
+
+      for (let i = 0; i < currentResults.length; i++) {
+        const item = currentResults[i];
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
+        
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `photo_${item.drive_file_id}.jpg`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // หน่วงเวลา 400ms ต่อภาพ เพื่อป้องกันไม่ให้เบราว์เซอร์บล็อกการดาวน์โหลดต่อเนื่อง
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+
+      downloadAllBtn.disabled = false;
+      downloadAllBtn.innerHTML = originalText;
+    });
+
+    // ฟังก์ชัน Modal Slider
     function openModalAt(index) {
       if (!currentResults || currentResults.length === 0) return;
       currentIndex = index;
@@ -328,7 +383,6 @@
       modalIndexIndicator.innerText = `ภาพที่ ${currentIndex + 1} / ${currentResults.length}`;
       modalSimilarity.innerText = item.similarity ? `ความเหมือน ${item.similarity}%` : '';
 
-      // ปิดใช้งานปุ่มเมื่อถึงขอบซ้ายหรือขวาสุด
       prevBtn.disabled = (currentIndex === 0);
       nextBtn.disabled = (currentIndex === currentResults.length - 1);
     }
@@ -350,7 +404,6 @@
     prevBtn.addEventListener('click', showPrevImage);
     nextBtn.addEventListener('click', showNextImage);
 
-    // รองรับปุ่มลูกศรคีย์บอร์ด (Left / Right / Escape)
     window.addEventListener('keydown', (e) => {
       if (imageModal.classList.contains('hidden')) return;
       if (e.key === 'ArrowLeft') showPrevImage();
@@ -358,7 +411,6 @@
       if (e.key === 'Escape') closeModalAction();
     });
 
-    // รองรับการปัดจอ Touch Swipe ซ้าย-ขวา บนมือถือ
     let touchStartX = 0;
     let touchEndX = 0;
 
@@ -375,9 +427,9 @@
       const swipeDistance = touchEndX - touchStartX;
       if (Math.abs(swipeDistance) > 45) {
         if (swipeDistance > 0) {
-          showPrevImage(); // ปัดขวา = ดูภาพก่อนหน้า
+          showPrevImage();
         } else {
-          showNextImage(); // ปัดซ้าย = ดูภาพถัดไป
+          showNextImage();
         }
       }
     }
