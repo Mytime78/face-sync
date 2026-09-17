@@ -32,8 +32,17 @@
         <span class="font-black text-xl tracking-tighter uppercase text-zinc-900">MYTIME</span>
         <span class="text-[10px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">PHOTO</span>
       </div>
-      <div id="aiBadge" class="text-xs border border-zinc-200 rounded-full px-2.5 py-1 bg-zinc-50 flex items-center gap-1.5 text-zinc-500">
-        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> โหลดระบบ AI...
+      
+      <div class="flex items-center gap-2">
+        <!-- Live Photo Counter สำหรับงานถ่ายสด -->
+        <div id="photoCounterBadge" class="text-xs border border-zinc-200 rounded-full px-2.5 py-1 bg-zinc-50 flex items-center gap-1.5 text-zinc-600">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>ในระบบ: <strong id="livePhotoCount" class="font-mono text-zinc-900">...</strong></span>
+        </div>
+
+        <div id="aiBadge" class="text-xs border border-zinc-200 rounded-full px-2.5 py-1 bg-zinc-50 flex items-center gap-1.5 text-zinc-500">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> โหลดระบบ AI...
+        </div>
       </div>
     </div>
   </header>
@@ -78,7 +87,7 @@
       <div class="flex items-center justify-between px-1 gap-2 flex-wrap">
         <div>
           <h2 id="resultCount" class="text-sm font-bold text-zinc-800">ผลการค้นหา</h2>
-          <span class="text-[11px] text-zinc-400 font-mono">Face Landmark AI (Strict Mode)</span>
+          <span class="text-[11px] text-zinc-400 font-mono">Face Landmark AI (Optimized Mode 0.38)</span>
         </div>
         
         <button id="downloadAllBtn" class="hidden items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition shadow-sm active:scale-95">
@@ -146,6 +155,7 @@
     const gallery = document.getElementById('gallery');
     const resultCount = document.getElementById('resultCount');
     const aiBadge = document.getElementById('aiBadge');
+    const livePhotoCount = document.getElementById('livePhotoCount');
     const downloadAllBtn = document.getElementById('downloadAllBtn');
     const allCountNum = document.getElementById('allCountNum');
 
@@ -165,6 +175,24 @@
     let currentResults = [];
     let currentIndex = 0;
 
+    // --- 1. ฟังก์ชันดึงจำนวนภาพสดในระบบ ---
+    async function updateLivePhotoCount() {
+      try {
+        let query = supabaseClient.from('event_faces').select('*', { count: 'exact', head: true });
+        if (targetEvent) {
+          query = query.eq('event_name', targetEvent);
+        }
+        const { count, error } = await query;
+        if (!error && count !== null) {
+          livePhotoCount.innerText = `${count.toLocaleString()} รูป`;
+        } else {
+          livePhotoCount.innerText = "พร้อมค้นหา";
+        }
+      } catch (err) {
+        livePhotoCount.innerText = "-";
+      }
+    }
+
     async function initAI() {
       try {
         const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
@@ -179,7 +207,11 @@
         aiBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> โหลด AI ไม่สำเร็จ';
       }
     }
+    
+    // เริ่มโหลดระบบและนับภาพสด
     initAI();
+    updateLivePhotoCount();
+    setInterval(updateLivePhotoCount, 30000); // อัปเดตจำนวนภาพทุก 30 วินาที
 
     function prepareCanvas(file, maxDimension = 640) {
       return new Promise((resolve, reject) => {
@@ -221,7 +253,6 @@
       gallery.innerHTML = '';
       currentResults = [];
       
-      // ข้อความจัดกึ่งกลางเสมอ
       statusNotice.innerText = "⏳ กำลังสแกนใบหน้า...";
       statusNotice.className = "text-xs text-center min-h-[18px] text-amber-600 animate-pulse font-medium";
 
@@ -268,10 +299,11 @@
       currentResults = [];
 
       try {
+        // อัปเกรด match_threshold เป็น 0.38
         let rpcName = targetEvent ? 'match_face' : 'match_face_global';
         let rpcParams = targetEvent 
-          ? { query_embedding: extractedDescriptor, target_event: targetEvent, match_threshold: 0.36, match_count: 200 }
-          : { query_embedding: extractedDescriptor, match_threshold: 0.36, match_count: 200 };
+          ? { query_embedding: extractedDescriptor, target_event: targetEvent, match_threshold: 0.38, match_count: 200 }
+          : { query_embedding: extractedDescriptor, match_threshold: 0.38, match_count: 200 };
 
         const { data, error } = await supabaseClient.rpc(rpcName, rpcParams);
 
